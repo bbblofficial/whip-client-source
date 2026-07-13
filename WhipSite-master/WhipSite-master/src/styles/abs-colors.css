@@ -1,0 +1,70 @@
+/* ── Absolute · Color tokens ──────────────────────────────────────────
+   Dark-first, near-black with a faint cool cast and a single cyan accent.
+   Derived 1:1 from the admin panel (app/globals.css HSL values).        */
+
+:root {
+  /* ── Base surfaces (cool near-black ramp) ── */
+  --abs-bg:            hsl(240 10% 3.9%);   /* app background        */
+  --abs-bg-raised:     hsl(240 10% 5.5%);   /* cards / popovers      */
+  --abs-bg-muted:      hsl(240 4% 12%);     /* inputs / wells        */
+  --abs-bg-accent:     hsl(240 4% 14%);     /* hover surface         */
+  --abs-bg-elevated:   hsl(240 7% 9%);      /* nested panels         */
+
+  /* ── Foreground / text ── */
+  --abs-fg:            hsl(0 0% 98%);        /* primary text          */
+  --abs-fg-muted:      hsl(240 5% 55%);     /* secondary text        */
+  --abs-fg-subtle:     hsl(240 5% 38%);     /* tertiary / disabled   */
+
+  /* ── Borders & lines ── */
+  --abs-border:        hsl(240 4% 12%);     /* default hairline      */
+  --abs-border-strong: hsl(240 4% 18%);     /* emphasized divider    */
+  --abs-ring:          hsl(191 100% 38%);   /* focus ring (primary)  */
+
+  /* ── Brand accent · cyan ── */
+  --abs-primary:        hsl(191 100% 38%);  /* #00a6cf-ish           */
+  --abs-primary-hover:  hsl(191 100% 33%);
+  --abs-primary-fg:     hsl(0 0% 100%);     /* text on primary fill  */
+  --abs-primary-soft:   hsl(191 100% 38% / 0.10); /* tinted fill     */
+  --abs-primary-line:   hsl(191 100% 38% / 0.22); /* tinted border   */
+  --abs-primary-glow:   hsl(191 100% 45% / 0.35); /* neon glow        */
+
+  /* ── Semantic status (admin status palette) ── */
+  --abs-success:       hsl(157 64% 52%);    /* emerald-400 · active  */
+  --abs-success-soft:  hsl(157 64% 52% / 0.10);
+  --abs-success-line:  hsl(157 64% 52% / 0.20);
+
+  --abs-danger:        hsl(0 91% 71%);      /* red-400 · revoked     */
+  --abs-danger-soft:   hsl(0 91% 71% / 0.10);
+  --abs-danger-line:   hsl(0 91% 71% / 0.20);
+  --abs-destructive:   hsl(0 84% 60%);      /* destructive fill      */
+
+  --abs-warning:       hsl(48 96% 53%);     /* yellow-400 · expired  */
+  --abs-warning-soft:  hsl(48 96% 53% / 0.10);
+  --abs-warning-line:  hsl(48 96% 53% / 0.20);
+
+  --abs-caution:       hsl(27 96% 61%);     /* orange-400 · suspended*/
+  --abs-caution-soft:  hsl(27 96% 61% / 0.10);
+  --abs-caution-line:  hsl(27 96% 61% / 0.20);
+
+  --abs-info:          hsl(213 94% 68%);    /* blue-400 · users      */
+  --abs-info-soft:     hsl(213 94% 68% / 0.10);
+  --abs-info-line:     hsl(213 94% 68% / 0.20);
+
+  --abs-accent-purple: hsl(271 91% 75%);    /* purple-400 · admin    */
+  --abs-purple-soft:   hsl(271 91% 75% / 0.10);
+  --abs-purple-line:   hsl(271 91% 75% / 0.20);
+
+  --abs-neutral:       hsl(240 5% 55%);     /* zinc · closed/default */
+  --abs-neutral-soft:  hsl(240 5% 55% / 0.10);
+  --abs-neutral-line:  hsl(240 5% 55% / 0.20);
+
+  /* ── Semantic aliases (use these in components) ── */
+  --surface-page:    var(--abs-bg);
+  --surface-card:    var(--abs-bg-raised);
+  --surface-input:   var(--abs-bg-muted);
+  --surface-hover:   var(--abs-bg-accent);
+  --text-primary:    var(--abs-fg);
+  --text-secondary:  var(--abs-fg-muted);
+  --text-disabled:   var(--abs-fg-subtle);
+  --line-hairline:   var(--abs-border);
+}

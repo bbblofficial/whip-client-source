@@ -1,0 +1,28 @@
+/cmake-build-debug/
+/cmake-build-release/
+.idea/
+.claude/
+*.pdb
+*.exe
+*.obj
+*.lib
+build.bat
+
+# Test artefacts / local outputs that should NOT ship
+flag_output.txt
+test_kd_run.log
+test_kd_under_cdb.txt
+whip*.dmp
+whip*.out
+*.dmp
+
+# Build helper output captures
+*build_*.txt
+
+# Stdout captures from test loops (out_*.txt, out.txt) and ad-hoc
+# debugger script files used for stealth-shim experiments. These are
+# generated locally during validation and never need to ship.
+out.txt
+out_*.txt
+test_scyllahide*.txt
+test_stealth*.txt

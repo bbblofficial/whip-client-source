@@ -1,0 +1,8 @@
+cmake-build-release/
+cmake-build-debug/
+
+DOCS.md
+
+build_release.bat
+_bisect_build.bat
+build_with_env.bat

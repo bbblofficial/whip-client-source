@@ -1,0 +1,112 @@
+#pragma once
+
+#include "Types.h"
+#include <Windows.h>
+
+#ifndef _NTDEF_
+typedef LONG NTSTATUS;
+#endif
+
+namespace ManualMapper
+{
+    class Syscalls
+    {
+    public:
+        static bool Initialize();
+
+        static NTSTATUS NtAllocateVirtualMemory(
+            HANDLE ProcessHandle,
+            PVOID* BaseAddress,
+            ULONG_PTR ZeroBits,
+            PSIZE_T RegionSize,
+            ULONG AllocationType,
+            ULONG Protect
+        );
+
+        static NTSTATUS NtFreeVirtualMemory(
+            HANDLE ProcessHandle,
+            PVOID* BaseAddress,
+            PSIZE_T RegionSize,
+            ULONG FreeType
+        );
+
+        static NTSTATUS NtWriteVirtualMemory(
+            HANDLE ProcessHandle,
+            PVOID BaseAddress,
+            PVOID Buffer,
+            SIZE_T NumberOfBytesToWrite,
+            PSIZE_T NumberOfBytesWritten
+        );
+
+        static NTSTATUS NtReadVirtualMemory(
+            HANDLE ProcessHandle,
+            PVOID BaseAddress,
+            PVOID Buffer,
+            SIZE_T NumberOfBytesToRead,
+            PSIZE_T NumberOfBytesRead
+        );
+
+        static NTSTATUS NtProtectVirtualMemory(
+            HANDLE ProcessHandle,
+            PVOID* BaseAddress,
+            PSIZE_T RegionSize,
+            ULONG NewProtect,
+            PULONG OldProtect
+        );
+
+        static NTSTATUS NtCreateThreadEx(
+            PHANDLE ThreadHandle,
+            ACCESS_MASK DesiredAccess,
+            PVOID ObjectAttributes,
+            HANDLE ProcessHandle,
+            PVOID StartRoutine,
+            PVOID Argument,
+            ULONG CreateFlags,
+            SIZE_T ZeroBits,
+            SIZE_T StackSize,
+            SIZE_T MaximumStackSize,
+            PVOID AttributeList
+        );
+
+        static NTSTATUS NtOpenProcess(
+            PHANDLE ProcessHandle,
+            ACCESS_MASK DesiredAccess,
+            PVOID ObjectAttributes,
+            PVOID ClientId
+        );
+
+    private:
+        static WORD GetSyscallNumber(const char* functionName);
+
+        struct CLIENT_ID
+        {
+            PVOID UniqueProcess;
+            PVOID UniqueThread;
+        };
+
+        struct OBJECT_ATTRIBUTES
+        {
+            ULONG Length;
+            HANDLE RootDirectory;
+            PVOID ObjectName;
+            ULONG Attributes;
+            PVOID SecurityDescriptor;
+            PVOID SecurityQualityOfService;
+        };
+    };
+
+    extern "C" NTSTATUS SyscallStub(
+        WORD syscallNumber,
+        PVOID arg1,
+        PVOID arg2,
+        PVOID arg3,
+        PVOID arg4,
+        PVOID arg5,
+        PVOID arg6,
+        PVOID arg7,
+        PVOID arg8,
+        PVOID arg9,
+        PVOID arg10,
+        PVOID arg11
+    );
+}

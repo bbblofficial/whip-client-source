@@ -1,0 +1,65 @@
+# ============================================
+# WhipBot Configuration
+# ============================================
+# Les variables d'environnement Docker override ces valeurs.
+# En local (java -jar), ce fichier est utilisé directement.
+
+token: ""
+openai-api-key: ""
+loader-path: "loader.exe"
+
+# ============================================
+# Database (override: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
+# ============================================
+database:
+  host: "localhost"
+  port: 5432
+  database: "whip"
+  username: "whip"
+  password: ""
+
+# ============================================
+# File Hosting (override: FILE_HOSTING_ENABLED, FILE_HOSTING_PORT, FILE_HOSTING_BASE_URL)
+# ============================================
+file-hosting:
+  enabled: false
+  port: 8080
+  base-url: "http://localhost:8080"
+
+# ============================================
+# Channels (IDs Discord)
+# ============================================
+channels:
+  guild-id: "1158902662423642202"
+  customer-guild-id: "1369763239138951219"
+  ticket-category-id: "1487893921211224146"
+  buy-ticket-category-id: "1487893718001258686"
+  questions-ticket-category-id: "1487893631972016179"
+  hwid-ticket-category-id: "1487893828374626444"
+  other-ticket-category-id: "1487893557627850872"
+  suggestion-channel-id: "1487894610507333906"
+  bug-report-channel-id: "1487894667940069527"
+  download-channel-id: "1487894506304180304"
+  transcript-logs-channel-id: "1487893256682344468"
+  download-customer-channel-id: "1370704653095931985"
+  download-beta-channel-id: "1370704645990645770"
+  suggestion-customer-channel-id: "1372233913392435352"
+  suggestion-beta-channel-id: "1370704650906636288"
+  bug-report-customer-channel-id: "1449887205853233275"
+  bug-report-beta-channel-id: "1370704652047355994"
+
+# ============================================
+# Permissions (Discord IDs)
+# ============================================
+permissions:
+  singerie-user-id: "1053050388355493989"
+  owner-role-id: "1158905372086652980"
+  support-role-id: "1335744848128507986"
+  customer-role-id: "1370704588671418520"
+  beta-role-id: "1370704587924963409"
+
+# ============================================
+# OpenAI Prompts
+# ============================================
+translation-prompt: "Translate the following message to {targetLanguage}. Only return the translated text, nothing else."
+language-detection-prompt: "Detect the language of the following message. Only return the language name in English, nothing else."

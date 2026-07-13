@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Header hygiene + tooling smoke test. Runs on every PR.
+  #
+  # We deliberately do NOT attempt a full Windows build here because the
+  # framework links against two private dependencies — WhipSysCall.lib and
+  # VMProtectSDK64.lib — that are not available on a clean GitHub runner.
+  # The interesting things to validate without those deps are:
+  #
+  #   1. Every check header has a unique include guard
+  #   2. The strenc generator runs and emits valid output
+  #   3. CMakeLists.txt is parseable
+  #   4. No obvious copy-paste sins (duplicate macro defs without guards)
+  # ---------------------------------------------------------------------------
+  hygiene:
+    name: Header hygiene + tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Verify every check header has an include guard
+        shell: bash
+        run: |
+          set -e
+          fail=0
+          for h in $(find antidebug -name '*.h'); do
+            if ! grep -q '^#ifndef ANTIDEBUG_' "$h"; then
+              echo "::error file=$h::missing #ifndef ANTIDEBUG_ guard"
+              fail=1
+            fi
+            if ! grep -q '^#endif' "$h"; then
+              echo "::error file=$h::missing closing #endif"
+              fail=1
+            fi
+          done
+          if [ $fail -ne 0 ]; then exit 1; fi
+          echo "All check headers have include guards."
+
+      - name: Smoke-test strenc generator
+        shell: bash
+        run: |
+          python tools/gen_strenc.py NtClose NtCreateFile NtQueryInformationProcess > /tmp/strenc.txt
+          if [ ! -s /tmp/strenc.txt ]; then
+            echo "::error::gen_strenc.py produced empty output"; exit 1
+          fi
+          # Each generated macro must contain its name and the AD_DECODE_BUF tail.
+          grep -q 'AD_STRENC_NtClose' /tmp/strenc.txt || (echo "::error::missing NtClose macro"; exit 1)
+          grep -q 'AD_DECODE_BUF' /tmp/strenc.txt || (echo "::error::missing AD_DECODE_BUF tail"; exit 1)
+          echo "gen_strenc.py: OK"
+
+      - name: Verify gen_strenc --header skeleton
+        shell: bash
+        run: |
+          python tools/gen_strenc.py --header NtClose > /tmp/strenc.h
+          grep -q '#ifndef ANTIDEBUG_STRENC_GENERATED_H' /tmp/strenc.h
+          grep -q '#endif // ANTIDEBUG_STRENC_GENERATED_H' /tmp/strenc.h
+          echo "gen_strenc.py --header: OK"
+
+      - name: CMakeLists.txt sanity
+        shell: bash
+        run: |
+          test -s CMakeLists.txt || (echo "::error::CMakeLists.txt missing or empty"; exit 1)
+          # Basic structural checks: must declare a project + at least one
+          # add_executable for the example, the boss test, and the lib.
+          grep -q '^project(' CMakeLists.txt
+          grep -q 'add_library(WhipAntiDebugger' CMakeLists.txt
+          grep -q 'add_executable(WhipAntiDebugger_Example' CMakeLists.txt
+          grep -q 'add_executable(BossTest' CMakeLists.txt
+          echo "CMakeLists.txt sanity OK"
+
+      - name: Detect unguarded duplicate AD_STRENC_ macro definitions
+        shell: bash
+        run: |
+          set -e
+          fail=0
+          # Find every #define AD_STRENC_X that is NOT preceded within the
+          # previous 2 lines by an #ifndef AD_STRENC_X line.
+          while read -r match; do
+            file=${match%%:*}
+            line=${match##*:}
+            macro=$(grep -m1 -oE 'AD_STRENC_[A-Za-z0-9_]+' <<< "$match")
+            # Look two lines back for the matching guard.
+            ctx=$(sed -n "$((line-2)),$((line))p" "$file")
+            if ! grep -q "#ifndef $macro" <<< "$ctx"; then
+              # Skip the canonical core/string_encrypt.h file — it's the
+              # one place where unguarded definitions are intended.
+              if [[ "$file" != *"core/string_encrypt.h" ]]; then
+                echo "::warning file=$file,line=$line::unguarded $macro definition"
+                fail=1
+              fi
+            fi
+          done < <(grep -rn '^#define AD_STRENC_' antidebug/ || true)
+          if [ $fail -ne 0 ]; then
+            echo "::warning::found unguarded macro definitions — wrap them in #ifndef ... #endif"
+          fi
+          # Warning only — don't fail the pipeline on this one.
+          exit 0
+
+  # ---------------------------------------------------------------------------
+  # Optional Windows build job. Only runs when the runner has the right
+  # private dependencies cached. Skipped on public PRs.
+  # ---------------------------------------------------------------------------
+  windows-build:
+    name: Windows build (private deps required)
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        shell: cmd
+        run: |
+          cmake -B cmake-build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug || (
+            echo "WhipSysCall / VMProtect SDK not available on this runner — skipping"
+            exit 0
+          )
+
+      - name: Build BossTest
+        shell: cmd
+        run: |
+          if exist cmake-build-debug\build.ninja (
+            cmake --build cmake-build-debug --target BossTest
+          )
+
+      - name: Run BossTest standalone (clean env, all PASS expected)
+        shell: cmd
+        run: |
+          if exist cmake-build-debug\BossTest.exe (
+            cmake-build-debug\BossTest.exe
+          )

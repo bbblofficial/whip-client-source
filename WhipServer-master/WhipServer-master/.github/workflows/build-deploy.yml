@@ -1,0 +1,297 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches:
+      - master  # Deploy PROD
+      - dev     # Deploy DEV
+  pull_request:
+    branches:
+      - master
+      - dev
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+          - build
+          - deploy
+          - build-and-deploy
+      environment:
+        description: 'Environment to deploy'
+        required: false
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - dev
+      tag:
+        description: 'Image tag (for deploy)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: whip-server
+  JAVA_VERSION: '21'
+  IMAGE_OWNER: whip-industries
+
+jobs:
+  build:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'deploy')
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      sha_short: ${{ steps.vars.outputs.sha_short }}
+      branch: ${{ steps.branch.outputs.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get branch name
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "name=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GPR_TOKEN }}
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test/
+          retention-days: 30
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f build/reports/tests/test/index.html ]; then
+            echo "Test report uploaded as artifact **test-report**" >> $GITHUB_STEP_SUMMARY
+            # Parse test results from XML
+            for f in build/test-results/test/*.xml; do
+              if [ -f "$f" ]; then
+                tests=$(grep -o 'tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+                failures=$(grep -o 'failures="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+                errors=$(grep -o 'errors="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+                name=$(grep -o 'name="[^"]*"' "$f" | head -1 | sed 's/name="//;s/"//')
+                if [ "${failures:-0}" = "0" ] && [ "${errors:-0}" = "0" ]; then
+                  echo "- :white_check_mark: **$name** — $tests tests passed" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "- :x: **$name** — $tests tests, $failures failures, $errors errors" >> $GITHUB_STEP_SUMMARY
+                fi
+              fi
+            done
+          else
+            echo ":x: No test report generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Build with Gradle
+        run: ./gradlew bootJar --no-daemon
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GPR_TOKEN }}
+
+      - name: Set variables
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ steps.meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ steps.vars.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ steps.branch.outputs.name }}\` |" >> $GITHUB_STEP_SUMMARY
+
+  deploy-prod:
+    name: Deploy to PROD
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'build' && github.event.inputs.environment == 'prod')
+
+    steps:
+      - name: Determine tag
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ needs.build.outputs.image_tag || 'latest' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to VPS PROD
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          GITHUB_USERNAME: ${{ env.IMAGE_OWNER }}
+          IMAGE_TAG: ${{ steps.config.outputs.tag }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GHCR_TOKEN,GHCR_USER,GITHUB_USERNAME,IMAGE_TAG
+          script: |
+            set -e
+            cd /home/debian/whip/prod
+
+            # Login to GHCR
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+
+            # Pull and restart only the server service
+            TAG=${IMAGE_TAG} GITHUB_USERNAME=${GITHUB_USERNAME} docker compose -f docker-compose.prod.yml pull whip-server
+            TAG=${IMAGE_TAG} GITHUB_USERNAME=${GITHUB_USERNAME} docker compose -f docker-compose.prod.yml up -d --force-recreate whip-server
+
+            # Cleanup
+            docker image prune -f
+
+            # Health check
+            sleep 10
+            docker ps | grep whip-server
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary (PROD)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **PRODUCTION** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ steps.config.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Path | \`/home/debian/whip/prod/\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+
+  deploy-dev:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'build' && github.event.inputs.environment == 'dev')
+
+    steps:
+      - name: Determine tag
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ needs.build.outputs.image_tag || 'dev' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to VPS DEV
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          GITHUB_USERNAME: ${{ env.IMAGE_OWNER }}
+          IMAGE_TAG: ${{ steps.config.outputs.tag }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GHCR_TOKEN,GHCR_USER,GITHUB_USERNAME,IMAGE_TAG
+          script: |
+            set -e
+            cd /home/debian/whip/dev
+
+            # Login to GHCR
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+
+            # Pull and restart only the server service
+            TAG=${IMAGE_TAG} GITHUB_USERNAME=${GITHUB_USERNAME} docker compose -f docker-compose.dev.yml pull whip-server-dev
+            TAG=${IMAGE_TAG} GITHUB_USERNAME=${GITHUB_USERNAME} docker compose -f docker-compose.dev.yml up -d --force-recreate whip-server-dev
+
+            # Cleanup
+            docker image prune -f
+
+            # Health check
+            sleep 10
+            docker ps | grep whip-server-dev
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary (DEV)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **DEVELOPMENT** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ steps.config.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Path | \`/home/debian/whip/dev/\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,15 @@
+# Configuration production pour WhipServer
+
+server:
+  port: 7777  # Port de production
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+logging:
+  level:
+    gg.whip.server: INFO
+    org.hibernate.SQL: WARN

@@ -1,0 +1,74 @@
+/* ════════════════════════════════════════════════════════════════════
+   WhipSite · Design tokens (foundational layer)
+   Reproduces the Absolute design-system token values 1:1 so the ported
+   WHIP component CSS resolves identically outside the original DS bundle.
+   Imported first by globals.css.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Note: the Google Fonts @import is hoisted to globals.css so it precedes
+   all CSS rules (a CSS @import must come before any style rule). */
+
+:root {
+  /* ── Families ── */
+  --font-sans:    'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* ── Radii ── */
+  --radius-sm:   0.25rem;
+  --radius-md:   0.375rem;
+  --radius-lg:   0.5rem;
+  --radius-xl:   0.75rem;
+  --radius-2xl:  1rem;
+  --radius-full: 9999px;
+
+  /* ── Shadows (deep, soft, low spread) ── */
+  --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.4);
+  --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.45);
+  --shadow-lg:  0 12px 32px hsl(0 0% 0% / 0.55);
+  --shadow-xl:  0 24px 60px hsl(0 0% 0% / 0.65);
+
+  /* ── Motion ── */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast:    120ms;
+  --dur-base:    180ms;
+  --dur-slow:    280ms;
+}
+
+/* ── Tailwind v4 theme bridge ──────────────────────────────────────────
+   Exposes WHIP tokens as Tailwind utilities (bg-whip-card, text-whip-fg,
+   rounded-whip-xl, etc.). Components can use either the .whip-* classes
+   below or these utilities; both resolve to the same CSS variables. */
+@theme inline {
+  --color-whip-primary:        var(--whip-primary);
+  --color-whip-primary-bright: var(--whip-primary-bright);
+  --color-whip-primary-hover:  var(--whip-primary-hover);
+  --color-whip-bg:             var(--whip-bg);
+  --color-whip-bg-deep:        var(--whip-bg-deep);
+  --color-whip-card:           var(--whip-card);
+  --color-whip-card-2:         var(--whip-card-2);
+  --color-whip-elevated:       var(--whip-elevated);
+  --color-whip-input:          var(--whip-input);
+  --color-whip-hover:          var(--whip-hover);
+  --color-whip-border:         var(--whip-border);
+  --color-whip-border-strong:  var(--whip-border-strong);
+  --color-whip-fg:             var(--whip-fg);
+  --color-whip-fg-muted:       var(--whip-fg-muted);
+  --color-whip-fg-subtle:      var(--whip-fg-subtle);
+  --color-whip-success:        var(--whip-success);
+  --color-whip-danger:         var(--whip-danger);
+  --color-whip-warning:        var(--whip-warning);
+  --color-whip-caution:        var(--whip-caution);
+  --color-whip-info:           var(--whip-info);
+  --color-whip-purple:         var(--whip-purple);
+
+  --font-sans:    var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono:    var(--font-mono);
+
+  --radius-whip-md:  var(--radius-md);
+  --radius-whip-lg:  var(--radius-lg);
+  --radius-whip-xl:  var(--radius-xl);
+  --radius-whip-2xl: var(--radius-2xl);
+}

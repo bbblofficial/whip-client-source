@@ -1,0 +1,34 @@
+name: Discord Notification
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification
+        run: |
+          COMMITS_LIST=""
+          COMMIT_COUNT=0
+          for commit in $(echo '${{ toJson(github.event.commits) }}' | jq -r '.[] | @base64'); do
+            commit_data=$(echo $commit | base64 --decode)
+            hash=$(echo $commit_data | jq -r '.id[0:7]')
+            message=$(echo $commit_data | jq -r '.message')
+            author=$(echo $commit_data | jq -r '.author.name')
+            commit_url="${{ github.event.repository.html_url }}/commit/$(echo $commit_data | jq -r '.id')"
+            COMMITS_LIST="${COMMITS_LIST}[\`${hash}\`](${commit_url}) ${message}\n"
+            COMMIT_COUNT=$((COMMIT_COUNT + 1))
+          done
+          
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"New push on Whip Server\",
+              \"description\": \"**Author:** ${{ github.actor }}\n**Commits:** ${COMMIT_COUNT}\n**Branch:** ${{ github.ref_name }}\n\n**All commits:**\n${COMMITS_LIST}\",
+              \"color\": 4817867,
+              \"url\": \"${{ github.event.compare }}\"
+            }],
+            \"username\": \"WhipUpdates\"
+          }"

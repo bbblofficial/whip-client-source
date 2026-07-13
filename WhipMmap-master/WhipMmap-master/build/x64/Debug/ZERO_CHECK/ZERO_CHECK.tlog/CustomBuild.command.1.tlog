@@ -1,0 +1,10 @@
+^C:\USERS\JAVA\DESKTOP\WHIP\WHIPMMAP\BUILD\CMAKEFILES\4D8A6045071F40DE481D86CC86E16D9E\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Java/Desktop/whip/WhipMmap -BC:/Users/Java/Desktop/whip/WhipMmap/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/Java/Desktop/whip/WhipMmap/build/WhipMmap.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

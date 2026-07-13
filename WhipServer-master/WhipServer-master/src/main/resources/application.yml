@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: whip-server
+
+  datasource:
+    # Les valeurs sont définies dans application-dev.yml ou application-prod.yml
+    # selon le profil Spring actif (SPRING_PROFILES_ACTIVE)
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/whip}
+    username: ${SPRING_DATASOURCE_USERNAME:whip}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+
+  flyway:
+    enabled: false
+
+server:
+  port: 7777
+  tls:
+    keystore-path: ${TLS_KEYSTORE_PATH:/app/tls/server.crt}
+    keystore-password: ${TLS_KEYSTORE_PASSWORD:oX37JHPpe?rSSHJ5}
+    certificate-dir: ${TLS_CERTIFICATE_DIR:./certs}
+  session:
+    ttl-minutes: 15
+    heartbeat-interval-seconds: 30
+    heartbeat-timeout-seconds: 60
+    max-per-license: 2
+    max-per-machine: 2
+    cleanup-interval-ms: 60000
+  security:
+    timestamp-tolerance-seconds: 30
+    request-id-retention-minutes: 5
+    cleanup-interval-ms: 300000
+  pool:
+    max-connections: 500
+    max-per-ip: 10
+  modules:
+    base-path: ${BUCKET_PATH:/bucket/}
+  discord:
+    enabled: ${DISCORD_ALERTS_ENABLED:true}
+    connect-webhook-url: ${DISCORD_CONNECT_WEBHOOK:https://discord.com/api/webhooks/1475488668482273474/Y_bs3rkzOMmrJKKQWDgZ9KOFF_HYpOeDvXXKky3407QI181iO-BF-DXuWQPjGkqRNfJl}
+    disconnect-webhook-url: ${DISCORD_DISCONNECT_WEBHOOK:https://discord.com/api/webhooks/1475488924179632353/6AUzOIX-bW9atTRmGU45-6R0Se6D1KMg7DnGeVksFxaLcG93Xi2oPAA7dLUDTTz7v5EK}
+    success-webhook-url: ${DISCORD_SUCCESS_WEBHOOK:https://discord.com/api/webhooks/1475488986364645396/BjMGtgj0-1rJq8WjqeuhwN8rX7X_jrnORGagd-8PS9DxaZecQgofaBHceuYXEKqfxb4Y}
+    fail-webhook-url: ${DISCORD_FAIL_WEBHOOK:https://discord.com/api/webhooks/1475489043058786415/96NVRypLP6JxIO4s2g0bgiMEk9yvhgkJpad6QsMllUcROHuZnHDs5FvaRWV2NnYbmMC9}
+    anomaly-webhook-url: ${DISCORD_ANOMALY_WEBHOOK:https://discord.com/api/webhooks/1475489090186121246/6pWbkl3NnZwbkZUH6waeN35yaoHpizQaN0fyjL-NHG4HR34AmDNhBE6eOVMWuxc20ZAm}
+    pattern-webhook-url: ${DISCORD_PATTERN_WEBHOOK:https://discord.com/api/webhooks/1475489138059907215/_d_NlQW9IObnUQRR0ISkpGyK-mkvbOH2QA3Pn9JuL3tqmXbEenNnSSDICBr9Qnl9VF-I}
+    reverse-webhook-url: ${DISCORD_REVERSE_WEBHOOK:https://discord.com/api/webhooks/1499504290924859462/Zn9rpKp9hpFdBg1ElOTc4whg0DjguAYGZwQqg8LdHz8_qAVheKNd0VfnGTYsaeTUlnvc}
+
+logging:
+  level:
+    gg.whip.server: DEBUG
+    org.hibernate.SQL: WARN
+
+
+

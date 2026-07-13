@@ -1,0 +1,17 @@
+# Les valeurs ${ENV_VAR:default} utilisent les variables d'environnement
+# Définies dans docker-compose.yml ou .env
+
+token: "${DISCORD_BOT_TOKEN}"
+loader-path: "${LOADER_PATH:/bucket/WhipLoader.exe}"
+
+file-hosting:
+  enabled: ${FILE_HOSTING_ENABLED:true}
+  port: ${FILE_HOSTING_PORT:8080}
+  base-url: "${FILE_HOSTING_BASE_URL:http://localhost:8080}"
+
+database:
+  host: "${DB_HOST:postgres}"
+  port: ${DB_PORT:5432}
+  database: "${DB_NAME:whip}"
+  username: "${DB_USER:whip}"
+  password: "${DB_PASSWORD}"

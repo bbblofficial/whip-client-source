@@ -1,0 +1,112 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "local",
+      "displayName": "LOCAL - Loader",
+      "description": "Mode local - DLL hardcodée + port dev (7778)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/local",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WHIP_BUILD_MODE": "LOCAL"
+      }
+    },
+    {
+      "name": "dev",
+      "displayName": "DEV - Loader",
+      "description": "Mode développement - DLL téléchargée + port dev (7778)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WHIP_BUILD_MODE": "DEV"
+      }
+    },
+    {
+      "name": "prod",
+      "displayName": "PROD - Loader",
+      "description": "Mode production - DLL téléchargée + port prod (7777)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/prod",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WHIP_BUILD_MODE": "PROD"
+      }
+    },
+    {
+      "name": "local-bypass",
+      "displayName": "LOCAL-BYPASS - Loader",
+      "description": "Mode local + FP-prone anti-debug checks disabled (manual-mapped scenario)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/local-bypass",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WHIP_BUILD_MODE": "LOCAL",
+        "WHIP_BYPASS_MODE": "ON"
+      }
+    },
+    {
+      "name": "dev-bypass",
+      "displayName": "DEV-BYPASS - Loader",
+      "description": "Mode dev + FP-prone anti-debug checks disabled (manual-mapped scenario)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dev-bypass",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WHIP_BUILD_MODE": "DEV",
+        "WHIP_BYPASS_MODE": "ON"
+      }
+    },
+    {
+      "name": "prod-bypass",
+      "displayName": "PROD-BYPASS - Loader",
+      "description": "Mode prod + FP-prone anti-debug checks disabled (manual-mapped scenario)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/prod-bypass",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WHIP_BUILD_MODE": "PROD",
+        "WHIP_BYPASS_MODE": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "local",
+      "displayName": "Build LOCAL Loader",
+      "configurePreset": "local",
+      "configuration": "Debug"
+    },
+    {
+      "name": "dev",
+      "displayName": "Build DEV Loader",
+      "configurePreset": "dev",
+      "configuration": "Debug"
+    },
+    {
+      "name": "prod",
+      "displayName": "Build PROD Loader",
+      "configurePreset": "prod",
+      "configuration": "Release"
+    },
+    {
+      "name": "local-bypass",
+      "displayName": "Build LOCAL-BYPASS Loader",
+      "configurePreset": "local-bypass",
+      "configuration": "Debug"
+    },
+    {
+      "name": "dev-bypass",
+      "displayName": "Build DEV-BYPASS Loader",
+      "configurePreset": "dev-bypass",
+      "configuration": "Debug"
+    },
+    {
+      "name": "prod-bypass",
+      "displayName": "Build PROD-BYPASS Loader",
+      "configurePreset": "prod-bypass",
+      "configuration": "Release"
+    }
+  ]
+}

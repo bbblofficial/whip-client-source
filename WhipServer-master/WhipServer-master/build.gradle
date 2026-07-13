@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.2'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'gg.whip'
+version = '0.0.1'
+
+
+java {
+    sourceCompatibility = '21'
+    targetCompatibility = '21'
+}
+
+repositories {
+    mavenCentral()
+
+    maven {
+        url = uri("https://maven.pkg.github.com/Whip-Industries/WhipAPI")
+        credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
+            password = project.findProperty("gpr.token") ?: System.getenv("TOKEN")
+        }
+    }
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok'
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'io.netty:netty-all:4.1.106.Final'
+    implementation 'org.flywaydb:flyway-core:10.8.1'
+    implementation 'at.favre.lib:bcrypt:0.10.2'
+    implementation 'fr.whip.api:whip-api:0.0.22'
+
+    // Compile-time dep so SyncListener can import org.postgresql.PGConnection
+    // for the LISTEN/NOTIFY long-poll loop. Was runtimeOnly because
+    // Hibernate loaded the driver reflectively.
+    implementation 'org.postgresql:postgresql'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql:10.8.1'
+
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

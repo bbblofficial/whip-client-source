@@ -1,0 +1,74 @@
+# ─────────────────────────────────────────────
+#  WhipBot2 — Configuration
+# ─────────────────────────────────────────────
+
+# Token Discord du bot
+token: "VOTRE_TOKEN_ICI"
+
+# Clé API OpenAI (utilisée pour la traduction / détection de langue)
+openai-api-key: "sk-..."
+
+# Chemin vers le loader (fichier .exe servi aux clients)
+loader-path: "/bucket/WhipLoader.exe"
+
+# Prompts OpenAI
+translation-prompt: "Translate the following message to English. Only reply with the translated text, nothing else."
+language-detection-prompt: "Detect the language of the following message. Only reply with the language name in English (e.g. French, Spanish, English), nothing else."
+
+# ── Hébergement de fichiers ──────────────────
+file-hosting:
+  enabled: true
+  port: 8080
+  base-url: "http://VOTRE_IP:8080"
+
+# ── Base de données PostgreSQL ───────────────
+database:
+  host: "whip-postgres"
+  port: 5432
+  database: "whip"
+  username: "whip"
+  password: "VOTRE_MOT_DE_PASSE_DB"
+
+# ── Channels & catégories Discord ───────────
+channels:
+  # ID du serveur Discord principal
+  guild-id: "1158902662423642202"
+
+  # ID du serveur Discord customer
+  customer-guild-id: "1369763239138951219"
+
+  # Catégorie parente pour tous les tickets
+  ticket-category-id: "1507077482874933382"
+
+  # Catégorie pour les tickets d'achat
+  buy-ticket-category-id: "1507077068511383552"
+
+  # Catégorie pour les tickets de questions
+  questions-ticket-category-id: "1507077019400274075"
+
+  # Catégorie pour les tickets de reset HWID
+  hwid-ticket-category-id: "1507076974722678934"
+
+  # Catégorie pour les autres tickets
+  other-ticket-category-id: "1507077124207415426"
+
+  # Salon pour les suggestions
+  suggestion-channel-id: "1507076316468613251"
+
+  # Salon pour les rapports de bug
+  bug-report-channel-id: "1507076355525840907"
+
+  # Salon où les liens de téléchargement sont postés
+  download-channel-id: "1507076454406422610"
+
+  # Salon où les transcripts de tickets sont archivés
+  transcript-logs-channel-id: "1507077776203710676"
+
+# ── Permissions ──────────────────────────────
+permissions:
+  # IDs du rôle owner sur chaque serveur (séparés par des virgules)
+  owner-role-ids: "1159089894983991378,1370704584049299518,1158905372086652980"
+  support-role-id: ""
+  customer-role-id: ""
+  beta-role-id: ""
+  singerie-user-id: ""

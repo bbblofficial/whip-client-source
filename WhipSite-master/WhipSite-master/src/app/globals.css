@@ -1,0 +1,20 @@
+/* ════════════════════════════════════════════════════════════════════
+   WhipSite · global stylesheet (Tailwind v4 entry)
+   Load order matters:
+     1. Tailwind            — utilities + preflight
+     2. tokens.css          — fonts, shadows, radii, motion + @theme bridge
+     3. abs-colors.css      — full Absolute --abs-* palette (cyan base)
+     4. abs-components.css  — Button / Badge / Input / Tag / Card classes
+     5. whip.css            — WHIP token overrides (accent → blue) + .whip-* components
+     6. pages.css           — page-level styles
+   The visual is preserved 1:1 from the prototype.
+   ════════════════════════════════════════════════════════════════════ */
+/* Web fonts first — a CSS @import must precede every style rule. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@import "../styles/tokens.css";
+@import "../styles/abs-colors.css";
+@import "../styles/abs-components.css";
+@import "../styles/whip.css";
+@import "../styles/pages.css";

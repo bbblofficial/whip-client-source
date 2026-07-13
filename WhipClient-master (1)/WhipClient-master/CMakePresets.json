@@ -1,0 +1,66 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "dev-standalone",
+      "displayName": "DEV - Client Standalone (no Loader)",
+      "description": "Client standalone pour développement, sans Loader IPC",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WHIP_BUILD_MODE": "DEV_STANDALONE"
+      }
+    },
+    {
+      "name": "dev-with-loader",
+      "displayName": "DEV - Client with Loader",
+      "description": "Client avec Loader IPC pour développement",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WHIP_BUILD_MODE": "DEV_WITH_LOADER"
+      }
+    },
+    {
+      "name": "prod-with-loader",
+      "displayName": "PROD - Client with Loader",
+      "description": "Client avec Loader IPC pour production",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WHIP_BUILD_MODE": "PROD_WITH_LOADER"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev-standalone",
+      "configurePreset": "dev-standalone",
+      "configuration": "Release"
+    },
+    {
+      "name": "dev-with-loader",
+      "configurePreset": "dev-with-loader",
+      "configuration": "Release"
+    },
+    {
+      "name": "prod-with-loader",
+      "configurePreset": "prod-with-loader",
+      "configuration": "Release"
+    }
+  ]
+}

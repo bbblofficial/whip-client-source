@@ -1,0 +1,138 @@
+name: Build & Deploy Mappings
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'mappings/**'
+      - 'mapping_pipeline.py'
+  pull_request:
+    branches:
+      - master
+  repository_dispatch:
+    types: [client-updated]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to process (leave empty for all)'
+        required: false
+        type: string
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+          - build
+          - deploy
+          - build-and-deploy
+
+jobs:
+  build:
+    name: Generate WBIN
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'deploy')
+    outputs:
+      sha_short: ${{ steps.vars.outputs.sha_short }}
+
+    steps:
+      - name: Checkout mappings
+        uses: actions/checkout@v4
+
+      - name: Checkout WhipClient
+        uses: actions/checkout@v4
+        with:
+          repository: Whip-Industries/WhipClient
+          # Prefer a fine-grained PAT (REPO_ACCESS_TOKEN) when available — required
+          # if WhipClient is private. Falls back to the auto-provisioned workflow
+          # token, which works for public repos and same-org public access.
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+          path: client
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set variables
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Run pipeline
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            python mapping_pipeline.py --version ${{ github.event.inputs.version }} --client-root client --ci
+          else
+            python mapping_pipeline.py --all --client-root client --ci
+          fi
+
+      - name: Upload WBIN artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wbin-${{ steps.vars.outputs.sha_short }}
+          path: out/
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "## Mappings Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ steps.vars.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | \`wbin-${{ steps.vars.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated files" >> $GITHUB_STEP_SUMMARY
+          find out -name "*.wbin" -printf "- \`%p\` (%s bytes)\n" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'build')
+    environment: prod
+
+    steps:
+      - name: Download WBIN artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wbin-${{ needs.build.outputs.sha_short }}
+          path: out
+
+      - name: Deploy to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "out/"
+          target: "/home/whip/bucket/mappings/"
+          strip_components: 1
+
+      - name: Post-deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            find /home/whip/bucket/mappings -name "*.wbin" -exec chmod 644 {} \;
+            echo "Deployed wbin files:"
+            find /home/whip/bucket/mappings -name "*.wbin" -ls
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ needs.build.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Path | \`/home/whip/bucket/mappings/\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | Deployed |" >> $GITHUB_STEP_SUMMARY

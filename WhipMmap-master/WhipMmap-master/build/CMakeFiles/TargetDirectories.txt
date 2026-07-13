@@ -1,0 +1,4 @@
+C:/Users/Java/Desktop/whip/WhipMmap/build/CMakeFiles/WhipMmap.dir
+C:/Users/Java/Desktop/whip/WhipMmap/build/CMakeFiles/WhipMmapTest.dir
+C:/Users/Java/Desktop/whip/WhipMmap/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/Java/Desktop/whip/WhipMmap/build/CMakeFiles/ZERO_CHECK.dir

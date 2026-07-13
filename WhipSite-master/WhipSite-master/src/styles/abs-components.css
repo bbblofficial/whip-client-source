@@ -1,0 +1,165 @@
+/* ════════════════════════════════════════════════════════════════════
+   ABSOLUTE · Component styles
+   Class-based so hover/focus/active states work. JSX components apply
+   these classes; values come from the token layer. @import'd by styles.css.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Button ─────────────────────────────────────────────────────────── */
+.abs-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  font-family: var(--font-sans); font-weight: var(--fw-medium);
+  border-radius: var(--radius-md); border: 1px solid transparent;
+  cursor: pointer; white-space: nowrap; user-select: none;
+  transition: background var(--dur-base), color var(--dur-base),
+              border-color var(--dur-base), box-shadow var(--dur-base), transform var(--dur-fast);
+}
+.abs-btn:focus-visible { outline: none; box-shadow: var(--ring-focus); }
+.abs-btn:active { transform: translateY(0.5px); }
+.abs-btn[disabled], .abs-btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+
+/* sizes */
+.abs-btn--sm { height: 32px; padding: 0 var(--space-3); font-size: var(--text-xs); }
+.abs-btn--md { height: 40px; padding: 0 var(--space-4); font-size: var(--text-sm); }
+.abs-btn--lg { height: 48px; padding: 0 var(--space-6); font-size: var(--text-base); }
+
+/* variants */
+.abs-btn--primary { background: var(--abs-primary); color: var(--abs-primary-fg); }
+.abs-btn--primary:hover { background: var(--abs-primary-hover); box-shadow: var(--glow-md); }
+
+.abs-btn--secondary { background: var(--abs-bg-muted); color: var(--abs-fg); border-color: var(--abs-border-strong); }
+.abs-btn--secondary:hover { background: var(--abs-bg-accent); }
+
+.abs-btn--ghost { background: transparent; color: var(--abs-fg-muted); }
+.abs-btn--ghost:hover { background: var(--abs-bg-accent); color: var(--abs-fg); }
+
+.abs-btn--outline { background: transparent; color: var(--abs-primary); border-color: var(--abs-primary-line); }
+.abs-btn--outline:hover { background: var(--abs-primary-soft); }
+
+.abs-btn--danger { background: transparent; color: var(--abs-danger); border-color: var(--abs-danger-line); }
+.abs-btn--danger:hover { background: var(--abs-danger-soft); }
+
+.abs-btn--icon { width: 40px; padding: 0; }
+.abs-btn--icon.abs-btn--sm { width: 32px; }
+.abs-btn--block { width: 100%; }
+
+/* ── Badge / Status ─────────────────────────────────────────────────── */
+.abs-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 2px var(--space-2); border-radius: var(--radius-sm);
+  font-size: var(--text-2xs); font-weight: var(--fw-medium);
+  border: 1px solid; line-height: 1.4; white-space: nowrap;
+}
+.abs-badge__dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; flex: none; }
+.abs-badge--active    { color: var(--abs-success);       background: var(--abs-success-soft); border-color: var(--abs-success-line); }
+.abs-badge--revoked,
+.abs-badge--danger    { color: var(--abs-danger);        background: var(--abs-danger-soft);  border-color: var(--abs-danger-line); }
+.abs-badge--expired,
+.abs-badge--warning   { color: var(--abs-warning);       background: var(--abs-warning-soft);  border-color: var(--abs-warning-line); }
+.abs-badge--suspended { color: var(--abs-caution);       background: var(--abs-caution-soft);  border-color: var(--abs-caution-line); }
+.abs-badge--info      { color: var(--abs-info);          background: var(--abs-info-soft);     border-color: var(--abs-info-line); }
+.abs-badge--admin     { color: var(--abs-accent-purple); background: var(--abs-purple-soft);   border-color: var(--abs-purple-line); }
+.abs-badge--neutral,
+.abs-badge--closed    { color: var(--abs-neutral);       background: var(--abs-neutral-soft);  border-color: var(--abs-neutral-line); }
+.abs-badge--brand     { color: var(--abs-primary);       background: var(--abs-primary-soft);  border-color: var(--abs-primary-line); }
+
+/* ── Tag (tier pill) ────────────────────────────────────────────────── */
+.abs-tag {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 3px var(--space-3); border-radius: var(--radius-full);
+  font-family: var(--font-mono); font-size: var(--text-2xs); font-weight: var(--fw-medium);
+  text-transform: uppercase; letter-spacing: var(--tracking-wide);
+  border: 1px solid var(--abs-border-strong); background: var(--abs-bg-muted); color: var(--abs-fg-muted);
+}
+.abs-tag--basic    { color: var(--abs-fg-muted); }
+.abs-tag--premium  { color: var(--abs-primary); border-color: var(--abs-primary-line); background: var(--abs-primary-soft); }
+.abs-tag--lifetime { color: var(--abs-accent-purple); border-color: var(--abs-purple-line); background: var(--abs-purple-soft); }
+
+/* ── Card ───────────────────────────────────────────────────────────── */
+.abs-card {
+  background: var(--surface-card); border: 1px solid var(--abs-border);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-md);
+}
+.abs-card--flat { box-shadow: none; }
+.abs-card--interactive { transition: border-color var(--dur-base), box-shadow var(--dur-base), transform var(--dur-base); }
+.abs-card--interactive:hover { border-color: var(--abs-primary-line); box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.abs-card--glow { border-color: var(--abs-primary-line); box-shadow: var(--glow-md); }
+.abs-card__body { padding: var(--space-5); }
+
+/* ── Input ──────────────────────────────────────────────────────────── */
+.abs-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.abs-label { font-size: var(--text-xs); font-weight: var(--fw-medium); color: var(--abs-fg-muted); }
+.abs-input {
+  height: 40px; width: 100%; padding: 0 var(--space-3);
+  background: var(--surface-input); border: 1px solid var(--abs-border);
+  border-radius: var(--radius-md); color: var(--abs-fg); font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+}
+.abs-input::placeholder { color: var(--abs-fg-subtle); }
+.abs-input:focus { outline: none; border-color: var(--abs-primary-line); box-shadow: 0 0 0 2px var(--abs-primary-soft); }
+.abs-input--mono { font-family: var(--font-mono); letter-spacing: 0.03em; }
+.abs-input--invalid { border-color: var(--abs-danger-line); }
+.abs-hint { font-size: var(--text-xs); color: var(--abs-fg-subtle); }
+.abs-hint--error { color: var(--abs-danger); }
+
+/* ── Select ─────────────────────────────────────────────────────────── */
+.abs-select {
+  height: 40px; width: 100%; padding: 0 var(--space-8) 0 var(--space-3);
+  background: var(--surface-input); border: 1px solid var(--abs-border);
+  border-radius: var(--radius-md); color: var(--abs-fg); font-size: var(--text-sm);
+  font-family: var(--font-sans); cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right var(--space-3) center;
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+}
+.abs-select:focus { outline: none; border-color: var(--abs-primary-line); box-shadow: 0 0 0 2px var(--abs-primary-soft); }
+
+/* ── License key field ──────────────────────────────────────────────── */
+.abs-key {
+  display: flex; align-items: center; gap: var(--space-2);
+  background: var(--abs-bg); border: 1px solid var(--abs-border);
+  border-radius: var(--radius-md); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+}
+.abs-key__val { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--abs-fg); letter-spacing: 0.08em; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.abs-key__btn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 28px; padding: 0 var(--space-2); border-radius: var(--radius-sm);
+  background: var(--abs-bg-muted); border: 1px solid var(--abs-border-strong);
+  color: var(--abs-fg-muted); font-size: var(--text-2xs); cursor: pointer;
+  transition: color var(--dur-base), background var(--dur-base);
+}
+.abs-key__btn:hover { color: var(--abs-fg); background: var(--abs-bg-accent); }
+.abs-key__btn--done { color: var(--abs-success); border-color: var(--abs-success-line); }
+
+/* ── Product card ───────────────────────────────────────────────────── */
+.abs-product {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface-card); border: 1px solid var(--abs-border);
+  border-radius: var(--radius-xl); transition: border-color var(--dur-base), box-shadow var(--dur-base), transform var(--dur-base);
+}
+.abs-product:hover { border-color: var(--abs-primary-line); box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+.abs-product__cover { position: relative; aspect-ratio: 16 / 10; background: var(--abs-bg-elevated); overflow: hidden; }
+.abs-product__cover img { width: 100%; height: 100%; object-fit: cover; }
+.abs-product__cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, var(--surface-card) 2%, transparent 55%); }
+.abs-product__badges { position: absolute; top: var(--space-3); left: var(--space-3); z-index: 2; display: flex; gap: var(--space-2); }
+.abs-product__body { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); flex: 1; }
+.abs-product__title { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--fw-bold); color: var(--abs-fg); letter-spacing: var(--tracking-snug); }
+.abs-product__desc { font-size: var(--text-sm); color: var(--abs-fg-muted); line-height: var(--leading-normal); flex: 1; }
+.abs-product__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.abs-product__price { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: var(--fw-bold); color: var(--abs-fg); }
+.abs-product__price small { font-family: var(--font-sans); font-size: var(--text-xs); font-weight: var(--fw-regular); color: var(--abs-fg-subtle); }
+
+/* ── Pricing tier ───────────────────────────────────────────────────── */
+.abs-price {
+  position: relative; display: flex; flex-direction: column; gap: var(--space-5);
+  background: var(--surface-card); border: 1px solid var(--abs-border);
+  border-radius: var(--radius-2xl); padding: var(--space-6);
+}
+.abs-price--featured { border-color: var(--abs-primary-line); box-shadow: var(--glow-md); }
+.abs-price__flag { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); }
+.abs-price__name { font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-caps); color: var(--abs-fg-muted); }
+.abs-price__amt { font-family: var(--font-display); font-size: var(--text-4xl); font-weight: var(--fw-bold); color: var(--abs-fg); line-height: 1; }
+.abs-price__amt small { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: var(--fw-regular); color: var(--abs-fg-subtle); }
+.abs-price__features { display: flex; flex-direction: column; gap: var(--space-3); list-style: none; padding: 0; margin: 0; }
+.abs-price__features li { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-sm); color: var(--abs-fg-muted); }
+.abs-price__features li svg { color: var(--abs-primary); flex: none; }

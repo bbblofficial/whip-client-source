@@ -1,0 +1,26 @@
+# Configuration développement pour WhipServer
+
+server:
+  port: 7778  # Port différent de prod (7777)
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15433/whip_dev}
+    username: ${SPRING_DATASOURCE_USERNAME:whip}
+    password: ${SPRING_DATASOURCE_PASSWORD:devpass123}
+
+  jpa:
+    hibernate:
+      # Prisma is the single source of truth for the schema (managed
+      # via `prisma db push` from WhipSite CI). Hibernate must NEVER
+      # create or alter columns — `update` would silently spawn
+      # duplicates whenever an entity field doesn't match Prisma's
+      # naming (e.g. createdAt → createdat instead of created_at).
+      # `validate` boots only if every @Entity matches an existing
+      # table/column; mismatches fail loud at startup.
+      ddl-auto: validate
+
+logging:
+  level:
+    gg.whip.server: DEBUG
+    org.hibernate.SQL: DEBUG

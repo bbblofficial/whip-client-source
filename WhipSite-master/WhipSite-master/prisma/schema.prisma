@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  discord_id    String?   @unique
+  username      String    @unique
+  password_hash String    @map("password_hash")
+  created_at    DateTime  @default(now())
+  grade         UserGrade @default(user)
+
+  // Relations
+  user_configs UserConfig[]
+  licenses     License[]
+  machines     Machine[]
+  downloads    Download[]
+  download_ids DownloadId[]
+  audit_logs   AuditLog[]
+  blacklist    Blacklist[]
+
+  @@map("users")
+}
+
+model Config {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  data        Json
+  is_public   Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+
+  // Relations
+  user_configs UserConfig[]
+
+  @@map("configs")
+}
+
+model UserConfig {
+  user_id   String   @db.Uuid
+  config_id String   @db.Uuid
+  is_owner  Boolean  @default(false)
+  added_at  DateTime @default(now()) @db.Timestamp(6)
+
+  // Relations
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  config Config @relation(fields: [config_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, config_id])
+  @@map("user_configs")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  created_at  DateTime @default(now())
+
+  // Relations
+  licenses  License[]
+  downloads Download[]
+
+  @@map("products")
+}
+
+model License {
+  id          String        @id @default(uuid()) @db.Uuid
+  license_key String        @unique
+  user_id     String?       @db.Uuid
+  product_id  String        @db.Uuid
+  created_at  DateTime      @default(now())
+  expires_at  DateTime?
+  status      LicenseStatus @default(active)
+
+  // Relations
+  user     User?     @relation(fields: [user_id], references: [id])
+  product  Product   @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@map("licenses")
+}
+
+model Machine {
+  id           String    @id @default(uuid()) @db.Uuid
+  user_id      String    @db.Uuid
+  hwid         String
+  pc_name      String
+  os           String
+  gpu_name     String?
+  cpu_brand    String?
+  ram_hex      String?
+  board_model  String?
+  screen_info  String?
+  storage_info String?
+  created_at   DateTime  @default(now())
+  last_seen_at DateTime  @default(now())
+  revoked_at   DateTime?
+
+  // Relations
+  user      User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sessions  Session[]
+  histories MachineHistory[]
+
+  @@unique([user_id, hwid])
+  @@map("machines")
+}
+
+model MachineHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  machine_id String   @db.Uuid
+  field_name String   @db.VarChar(64)
+  old_value  String?  @db.VarChar(512)
+  new_value  String?  @db.VarChar(512)
+  changed_at DateTime @default(now())
+
+  machine Machine @relation(fields: [machine_id], references: [id], onDelete: Cascade)
+
+  @@index([machine_id])
+  @@index([changed_at])
+  @@map("machine_histories")
+}
+
+model Session {
+  id                String    @id @default(uuid()) @db.Uuid
+  license_id        String    @db.Uuid
+  machine_id        String    @db.Uuid
+  ip                String
+  token_hash        String    @unique
+  session_key_hash  String
+  started_at        DateTime  @default(now())
+  expires_at        DateTime
+  last_heartbeat_at DateTime?
+  ended_at          DateTime?
+
+  // Relations
+  license       License       @relation(fields: [license_id], references: [id], onDelete: Cascade)
+  machine       Machine       @relation(fields: [machine_id], references: [id], onDelete: Cascade)
+  used_requests UsedRequest[]
+  used_nonces   UsedNonce[]
+
+  @@index([license_id])
+  @@index([machine_id])
+  @@map("sessions")
+}
+
+model Download {
+  id                   String    @id @default(uuid()) @db.Uuid
+  download_id          String    @unique(map: "uk_mpqv91nbt4sdbl7ol35twd5ej") @db.VarChar(32)
+  downloaded_at        DateTime  @default(now())
+  first_used_at        DateTime?
+  ip_address           String?
+  last_used_at         DateTime?
+  revoked              Boolean   @default(false)
+  revoke_reason        String?   @db.VarChar(255)
+  use_count            Int       @default(0)
+  user_id              String    @db.Uuid
+  product_id           String?   @db.Uuid
+  auth_salt            Bytes?
+  algo_seed            Bytes?
+  expected_fingerprint Bytes?
+
+  // Relations
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [product_id], references: [id])
+
+  @@map("downloads")
+}
+
+model Blacklist {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  reason     String?
+  created_at DateTime  @default(now())
+  expires_at DateTime?
+  created_by String?   @db.VarChar(100)
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("blacklist")
+}
+
+model AuditLog {
+  action     String
+  entity     String
+  details    String?
+  created_at DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  // Nullable: when admin_id AND entity_id are both null, the entry is a
+  // SYSTEM event (startup, connection, error…) with no admin actor / entity.
+  admin_id   String?  @db.Uuid
+  entity_id  String?  @db.Uuid
+
+  // Relations
+  admin User? @relation(fields: [admin_id], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+model UsedRequest {
+  id         String   @id @default(uuid()) @db.Uuid
+  session_id String   @db.Uuid
+  used_at    DateTime @default(now())
+
+  // Relations
+  session Session @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@index([used_at])
+  @@map("used_requests")
+}
+
+model UsedNonce {
+  id         String   @id @default(uuid()) @db.Uuid
+  nonce_hash String   @unique
+  session_id String?  @db.Uuid
+  used_at    DateTime @default(now())
+
+  // Relations
+  session Session? @relation(fields: [session_id], references: [id], onDelete: SetNull)
+
+  @@index([nonce_hash])
+  @@index([used_at])
+  @@map("used_nonces")
+}
+
+model DownloadId {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("download_ids")
+}
+
+model DllWatermark {
+  id           String   @id @default(uuid()) @db.Uuid
+  session_uuid String   @unique
+  user_id      String?  @db.Uuid
+  discord_id   String?
+  hwid         String?
+  ip           String?
+  pc_name      String?
+  hmac_hex     String?
+  download_id  String?  @db.Uuid
+  created_at   DateTime @default(now())
+
+  @@index([user_id])
+  @@index([created_at])
+  @@map("dll_watermarks")
+}
+
+model DownloadGate {
+  id         Int      @id @default(1)
+  enabled    Boolean  @default(true)
+  mode       String   @default("OPEN") @db.VarChar(20)
+  reason     String?  @db.Text
+  updated_at DateTime @default(now()) @updatedAt
+  updated_by String?  @db.VarChar(100)
+
+  @@map("download_gate")
+}
+
+model FlywaySchemaHistory {
+  installed_rank Int      @id(map: "flyway_schema_history_pk")
+  version        String?  @db.VarChar(50)
+  description    String   @db.VarChar(200)
+  type           String   @db.VarChar(20)
+  script         String   @db.VarChar(1000)
+  checksum       Int?
+  installed_by   String   @db.VarChar(100)
+  installed_on   DateTime @default(now()) @db.Timestamp(6)
+  execution_time Int
+  success        Boolean
+
+  @@map("flyway_schema_history")
+}
+
+enum UserGrade {
+  user
+  media
+  moderator
+  admin
+  owner
+}
+
+enum LicenseStatus {
+  active
+  suspended
+  revoked
+  expired
+}

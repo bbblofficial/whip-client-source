@@ -8,53 +8,37 @@ on:
 env:
   PROJECT_DIR: WhipClient-master/WhipClient-master
   CONFIGURATION: Release
-  PLATFORM: x64          # change to Win32 if the solution has no x64 config
+  ARCH: x64            # اگه پروژه 32 بیتیه: Win32
 
 jobs:
   build:
-    runs-on: windows-2022   # older VS toolsets (v142/v143) are more likely to work here
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
-      - uses: microsoft/setup-msbuild@v2
-
-      - name: Locate project file
-        id: find
+      - name: Show CMakeLists (for debugging)
         shell: pwsh
-        run: |
-          $root = Join-Path $PWD $env:PROJECT_DIR
-          if (-not (Test-Path $root)) { Write-Error "Folder not found: $root"; exit 1 }
+        run: Get-Content "$env:PROJECT_DIR/CMakeLists.txt" -TotalCount 60
 
-          Write-Host "Project-related files found:"
-          Get-ChildItem $root -Recurse -Include *.sln,*.vcxproj,CMakeLists.txt |
-            ForEach-Object { Write-Host "  $($_.FullName)" }
-
-          $target = Get-ChildItem $root -Recurse -Filter *.sln | Select-Object -First 1
-          if (-not $target) {
-            $target = Get-ChildItem $root -Recurse -Filter *.vcxproj | Select-Object -First 1
-          }
-          if (-not $target) {
-            Write-Error "No .sln or .vcxproj found. If there is a CMakeLists.txt, use the CMake steps instead."
-            exit 1
-          }
-          Write-Host "Building: $($target.FullName)"
-          "target=$($target.FullName)" >> $env:GITHUB_OUTPUT
-
-      - name: Restore packages
-        continue-on-error: true
-        run: msbuild "${{ steps.find.outputs.target }}" -t:restore -p:Configuration=${{ env.CONFIGURATION }} -p:Platform=${{ env.PLATFORM }}
+      - name: Configure
+        run: cmake -S "${{ env.PROJECT_DIR }}" -B build -G "Visual Studio 17 2022" -A ${{ env.ARCH }}
 
       - name: Build
-        run: msbuild "${{ steps.find.outputs.target }}" /m /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=${{ env.PLATFORM }}
+        run: cmake --build build --config ${{ env.CONFIGURATION }} --parallel
+
+      - name: List outputs
+        shell: pwsh
+        run: |
+          Get-ChildItem build -Recurse -Include *.exe,*.dll,*.lib |
+            Where-Object { $_.FullName -notmatch 'CMakeFiles' } |
+            ForEach-Object { Write-Host $_.FullName }
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
-          name: WhipClient-${{ env.PLATFORM }}-${{ env.CONFIGURATION }}
+          name: WhipClient-${{ env.ARCH }}-${{ env.CONFIGURATION }}
           path: |
-            ${{ env.PROJECT_DIR }}/**/${{ env.CONFIGURATION }}/**/*.exe
-            ${{ env.PROJECT_DIR }}/**/${{ env.CONFIGURATION }}/**/*.dll
-            ${{ env.PROJECT_DIR }}/**/${{ env.CONFIGURATION }}/**/*.lib
-            ${{ env.PROJECT_DIR }}/**/x64/${{ env.CONFIGURATION }}/**/*.exe
-            ${{ env.PROJECT_DIR }}/**/x64/${{ env.CONFIGURATION }}/**/*.dll
+            build/**/${{ env.CONFIGURATION }}/*.exe
+            build/**/${{ env.CONFIGURATION }}/*.dll
+            build/**/${{ env.CONFIGURATION }}/*.lib
           if-no-files-found: warn

@@ -7,8 +7,9 @@ on:
 
 env:
   PROJECT_DIR: WhipClient-master/WhipClient-master
+  ANTIDEBUG_DIR: WhipAntiDebug-master/WhipAntiDebug-master
   CONFIGURATION: Release
-  ARCH: x64            # اگه پروژه 32 بیتیه: Win32
+  ARCH: x64
 
 jobs:
   build:
@@ -16,20 +17,67 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show CMakeLists (for debugging)
-        shell: pwsh
-        run: Get-Content "$env:PROJECT_DIR/CMakeLists.txt" -TotalCount 60
+      - uses: microsoft/setup-msbuild@v2
 
-      - name: Configure
+      - name: Diagnose
+        shell: pwsh
+        run: |
+          Write-Host "=== References in WhipClient CMakeLists.txt ==="
+          Select-String -Path "$env:PROJECT_DIR/CMakeLists.txt" -Pattern 'C:[/\\]','CLionProjects','AntiDebug','IMPORTED','add_subdirectory','find_package' |
+            ForEach-Object { Write-Host ("{0,4}: {1}" -f $_.LineNumber, $_.Line.Trim()) }
+          Write-Host "=== WhipAntiDebug folder ==="
+          Get-ChildItem $env:ANTIDEBUG_DIR -Recurse -Depth 2 |
+            ForEach-Object { Write-Host $_.FullName.Replace("$PWD\", "") }
+
+      # Build WhipAntiDebug first (CMake project, or Visual Studio as fallback)
+      - name: Build WhipAntiDebug
+        shell: pwsh
+        run: |
+          $dir = Join-Path $PWD $env:ANTIDEBUG_DIR
+          $out = Join-Path $dir "cmake-build-release"
+          if (Test-Path "$dir/CMakeLists.txt") {
+            cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            cmake --build $out --config $env:CONFIGURATION --parallel
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } else {
+            $sln = Get-ChildItem $dir -Recurse -Filter *.sln | Select-Object -First 1
+            if (-not $sln) { $sln = Get-ChildItem $dir -Recurse -Filter *.vcxproj | Select-Object -First 1 }
+            if (-not $sln) { Write-Error "No buildable project in $dir"; exit 1 }
+            msbuild $sln.FullName /m /p:Configuration=$env:CONFIGURATION /p:Platform=$env:ARCH
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+
+          # Copy produced .lib files next to where CLion would have put them
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Get-ChildItem $dir -Recurse -Filter *.lib |
+            Where-Object { $_.DirectoryName -ne $out } |
+            ForEach-Object { Copy-Item $_.FullName $out -Force; Write-Host "Copied $($_.Name)" }
+          Copy-Item (Join-Path $out "*.lib") $dir -Force -ErrorAction SilentlyContinue
+
+      - name: Patch author's hardcoded paths
+        shell: pwsh
+        run: |
+          $cm = "$env:PROJECT_DIR/CMakeLists.txt"
+          $ws = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $new = "$ws/$env:ANTIDEBUG_DIR"
+          $text = Get-Content $cm -Raw
+          $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', $new)
+          Set-Content -Path $cm -Value $text -NoNewline
+          Write-Host "Patched to: $new"
+          Select-String -Path $cm -Pattern 'C:[/\\]Users' | ForEach-Object { Write-Host "STILL HARDCODED: $($_.Line.Trim())" }
+
+      - name: Configure WhipClient
         run: cmake -S "${{ env.PROJECT_DIR }}" -B build -G "Visual Studio 17 2022" -A ${{ env.ARCH }}
 
-      - name: Build
+      - name: Build WhipClient
         run: cmake --build build --config ${{ env.CONFIGURATION }} --parallel
 
       - name: List outputs
+        if: always()
         shell: pwsh
         run: |
-          Get-ChildItem build -Recurse -Include *.exe,*.dll,*.lib |
+          Get-ChildItem build -Recurse -Include *.exe,*.dll,*.lib -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch 'CMakeFiles' } |
             ForEach-Object { Write-Host $_.FullName }
 
@@ -40,5 +88,4 @@ jobs:
           path: |
             build/**/${{ env.CONFIGURATION }}/*.exe
             build/**/${{ env.CONFIGURATION }}/*.dll
-            build/**/${{ env.CONFIGURATION }}/*.lib
           if-no-files-found: warn

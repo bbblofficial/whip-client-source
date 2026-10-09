@@ -1,22 +1,60 @@
-name: Build
+name: Build WhipClient
 
 on:
   push:
     branches: [ master ]
   workflow_dispatch:
 
+env:
+  PROJECT_DIR: WhipClient-master/WhipClient-master
+  CONFIGURATION: Release
+  PLATFORM: x64          # change to Win32 if the solution has no x64 config
+
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022   # older VS toolsets (v142/v143) are more likely to work here
     steps:
       - uses: actions/checkout@v4
 
       - uses: microsoft/setup-msbuild@v2
 
-      - name: Build
-        run: msbuild "WhipClient-master/WhipClient-master/WhipClient.sln" /p:Configuration=Release /p:Platform=x64
+      - name: Locate project file
+        id: find
+        shell: pwsh
+        run: |
+          $root = Join-Path $PWD $env:PROJECT_DIR
+          if (-not (Test-Path $root)) { Write-Error "Folder not found: $root"; exit 1 }
 
-      - uses: actions/upload-artifact@v4
+          Write-Host "Project-related files found:"
+          Get-ChildItem $root -Recurse -Include *.sln,*.vcxproj,CMakeLists.txt |
+            ForEach-Object { Write-Host "  $($_.FullName)" }
+
+          $target = Get-ChildItem $root -Recurse -Filter *.sln | Select-Object -First 1
+          if (-not $target) {
+            $target = Get-ChildItem $root -Recurse -Filter *.vcxproj | Select-Object -First 1
+          }
+          if (-not $target) {
+            Write-Error "No .sln or .vcxproj found. If there is a CMakeLists.txt, use the CMake steps instead."
+            exit 1
+          }
+          Write-Host "Building: $($target.FullName)"
+          "target=$($target.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Restore packages
+        continue-on-error: true
+        run: msbuild "${{ steps.find.outputs.target }}" -t:restore -p:Configuration=${{ env.CONFIGURATION }} -p:Platform=${{ env.PLATFORM }}
+
+      - name: Build
+        run: msbuild "${{ steps.find.outputs.target }}" /m /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=${{ env.PLATFORM }}
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
         with:
-          name: WhipClient
-          path: WhipClient-master/WhipClient-master/**/Release/**
+          name: WhipClient-${{ env.PLATFORM }}-${{ env.CONFIGURATION }}
+          path: |
+            ${{ env.PROJECT_DIR }}/**/${{ env.CONFIGURATION }}/**/*.exe
+            ${{ env.PROJECT_DIR }}/**/${{ env.CONFIGURATION }}/**/*.dll
+            ${{ env.PROJECT_DIR }}/**/${{ env.CONFIGURATION }}/**/*.lib
+            ${{ env.PROJECT_DIR }}/**/x64/${{ env.CONFIGURATION }}/**/*.exe
+            ${{ env.PROJECT_DIR }}/**/x64/${{ env.CONFIGURATION }}/**/*.dll
+          if-no-files-found: warn

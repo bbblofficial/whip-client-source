@@ -17,28 +17,25 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
-      # ── 0. Stub VMProtect macros in ALL source files ──────────────────────────
+      # ── 0. Stub VMProtect macros ──────────────────────────────────────────────
       - name: Stub VMProtect macros
         shell: pwsh
         run: |
           $ws = $env:GITHUB_WORKSPACE
           Write-Host "Scanning for VMProtect macro calls..."
-
           Get-ChildItem $ws -Recurse -Include *.cpp,*.c,*.h,*.hpp |
             Where-Object { $_.FullName -notmatch 'Thirdpary|ThirdParty|third_party|tests\\' } |
             ForEach-Object {
               $text = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
               if ($text -and $text -match 'VMProtect') {
-                Write-Host "Patching: $($_.FullName.Replace($ws,''))"
-                # Stub out all VMProtect macro calls (they are no-ops without the SDK)
-                $text = $text -replace 'VMProtectBeginMutation\s*\([^)]*\)\s*;',      '/* VMProtectBeginMutation — stubbed */'
-                $text = $text -replace 'VMProtectBeginVirtualization\s*\([^)]*\)\s*;','/* VMProtectBeginVirtualization — stubbed */'
-                $text = $text -replace 'VMProtectBeginUltra\s*\([^)]*\)\s*;',         '/* VMProtectBeginUltra — stubbed */'
-                $text = $text -replace 'VMProtectBeginUltraLockByKey\s*\([^)]*\)\s*;','/* VMProtectBeginUltraLockByKey — stubbed */'
-                $text = $text -replace 'VMProtectEnd\s*\(\s*\)\s*;',                  '/* VMProtectEnd — stubbed */'
-                # Stub out SDK includes so they don't cause missing file errors
-                $text = $text -replace '#\s*include\s*[<"]VMProtectSDK\.h[">]',       '/* #include VMProtectSDK.h — stubbed */'
+                $text = $text -replace 'VMProtectBeginMutation\s*\([^)]*\)\s*;',       '/* VMProtectBeginMutation stubbed */'
+                $text = $text -replace 'VMProtectBeginVirtualization\s*\([^)]*\)\s*;', '/* VMProtectBeginVirtualization stubbed */'
+                $text = $text -replace 'VMProtectBeginUltra\s*\([^)]*\)\s*;',          '/* VMProtectBeginUltra stubbed */'
+                $text = $text -replace 'VMProtectBeginUltraLockByKey\s*\([^)]*\)\s*;', '/* VMProtectBeginUltraLockByKey stubbed */'
+                $text = $text -replace 'VMProtectEnd\s*\(\s*\)\s*;',                   '/* VMProtectEnd stubbed */'
+                $text = $text -replace '#\s*include\s*[<"]VMProtectSDK\.h[">]',        '/* VMProtectSDK.h stubbed */'
                 Set-Content $_.FullName $text -NoNewline
+                Write-Host "Patched: $($_.Name)"
               }
             }
           Write-Host "VMProtect stub pass complete."
@@ -50,65 +47,71 @@ jobs:
           $ws  = $env:GITHUB_WORKSPACE -replace '\\','/'
           $dir = "$ws/WhipSysCall-master/WhipSysCall-master"
           $out = "$dir/cmake-build-release"
-
-          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH `
-                -DBUILD_WITH_VMPROTECT=OFF
+          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH -DBUILD_WITH_VMPROTECT=OFF
           if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build $out --config $env:CONFIGURATION --parallel
           if ($LASTEXITCODE -ne 0) { exit 1 }
-
-          Write-Host "=== WhipSysCall .lib files ==="
-          Get-ChildItem $out -Recurse -Filter *.lib | ForEach-Object { Write-Host $_.FullName }
+          Write-Host "WhipSysCall.lib: $(Get-ChildItem $out -Recurse -Filter WhipSysCall.lib | Select -First 1 | % FullName)"
 
       # ── 2. Build WhipNexus ────────────────────────────────────────────────────
       - name: Build WhipNexus
         shell: pwsh
         run: |
-          $ws  = $env:GITHUB_WORKSPACE -replace '\\','/'
-          $dir = "$ws/WhipNexus-Master/WhipNexus-Master"
-          $out = "$dir/cmake-build-release"
+          $ws      = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir     = "$ws/WhipNexus-Master/WhipNexus-Master"
+          $out     = "$dir/cmake-build-release"
+          $syscall = "$ws/WhipSysCall-master/WhipSysCall-master"
 
           if (-not (Test-Path "$dir/CMakeLists.txt")) {
-            Write-Host "No CMakeLists.txt in WhipNexus — trying .sln"
-            $sln = Get-ChildItem $dir -Recurse -Filter *.sln | Select-Object -First 1
-            if ($sln) {
-              msbuild $sln.FullName /m /p:Configuration=$env:CONFIGURATION /p:Platform=$env:ARCH
-              if ($LASTEXITCODE -ne 0) { exit 1 }
-            } else { Write-Host "Nothing to build in WhipNexus — skipping"; exit 0 }
-          } else {
-            $cm = "$dir/CMakeLists.txt"
-            $text = Get-Content $cm -Raw
-            $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall', "$ws/WhipSysCall-master/WhipSysCall-master")
-            $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',   $dir)
-            Set-Content $cm $text -NoNewline
-
-            cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH `
-                  -DBUILD_WITH_VMPROTECT=OFF
-            if ($LASTEXITCODE -ne 0) { exit 1 }
-            cmake --build $out --config $env:CONFIGURATION --parallel
-            if ($LASTEXITCODE -ne 0) { exit 1 }
+            Write-Host "No CMakeLists.txt in WhipNexus — skipping"; exit 0
           }
 
+          $cm   = "$dir/CMakeLists.txt"
+          $text = Get-Content $cm -Raw
+
+          # Replace absolute hardcoded paths
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall', $syscall)
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',   $dir)
+
+          # Replace relative path ../WhipSysCall (the root cause of this run's error)
+          # It resolves to $dir/../WhipSysCall which doesn't exist — point it to the real location
+          $text = $text -replace '\.\./WhipSysCall', $syscall
+          $text = $text -replace '\.\.[/\\]WhipSysCall', $syscall
+
+          Set-Content $cm $text -NoNewline
+
+          # Show any remaining C:/Users references
+          $left = Select-String -Path $cm -Pattern 'C:/Users|\.\./'
+          if ($left) { $left | ForEach-Object { Write-Host "REMAINING line $($_.LineNumber): $($_.Line.Trim())" } }
+
+          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH -DBUILD_WITH_VMPROTECT=OFF
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build $out --config $env:CONFIGURATION --parallel
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
           Write-Host "=== WhipNexus .lib files ==="
-          Get-ChildItem $dir -Recurse -Filter *.lib | ForEach-Object { Write-Host $_.FullName }
+          Get-ChildItem $out -Recurse -Filter *.lib | ForEach-Object { Write-Host $_.FullName }
 
       # ── 3. Build WhipAntiDebug ────────────────────────────────────────────────
       - name: Build WhipAntiDebug
         shell: pwsh
         run: |
-          $ws  = $env:GITHUB_WORKSPACE -replace '\\','/'
-          $dir = "$ws/WhipAntiDebug-master/WhipAntiDebug-master"
-          $out = "$dir/cmake-build-release"
+          $ws      = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir     = "$ws/WhipAntiDebug-master/WhipAntiDebug-master"
+          $out     = "$dir/cmake-build-release"
+          $syscall = "$ws/WhipSysCall-master/WhipSysCall-master"
+          $nexus   = "$ws/WhipNexus-Master/WhipNexus-Master"
 
           $cm   = "$dir/CMakeLists.txt"
           $text = Get-Content $cm -Raw
-          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall', "$ws/WhipSysCall-master/WhipSysCall-master")
-          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',   "$ws/WhipNexus-Master/WhipNexus-Master")
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       $syscall)
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',         $nexus)
           $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', $dir)
+          $text = $text -replace '\.\./WhipSysCall', $syscall
+          $text = $text -replace '\.\./WhipNexus',   $nexus
           Set-Content $cm $text -NoNewline
 
-          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH `
-                -DBUILD_WITH_VMPROTECT=OFF
+          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH -DBUILD_WITH_VMPROTECT=OFF
           if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build $out --config $env:CONFIGURATION --parallel
           if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -127,17 +130,15 @@ jobs:
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',         "$ws/WhipNexus-Master/WhipNexus-Master")
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       "$ws/WhipSysCall-master/WhipSysCall-master")
           $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', "$ws/WhipAntiDebug-master/WhipAntiDebug-master")
-          # Force VMProtect OFF
           $text = $text -replace 'option\(BUILD_WITH_VMPROTECT\s+"[^"]*"\s+ON\)', 'option(BUILD_WITH_VMPROTECT "Build with VMProtect SDK" OFF)'
+          $text = $text -replace '\.\./WhipSysCall', "$ws/WhipSysCall-master/WhipSysCall-master"
+          $text = $text -replace '\.\./WhipNexus',   "$ws/WhipNexus-Master/WhipNexus-Master"
 
           Set-Content $cm $text -NoNewline
 
           $left = Select-String -Path $cm -Pattern 'C:/Users'
-          if ($left) {
-            $left | ForEach-Object { Write-Host "STILL HARDCODED line $($_.LineNumber): $($_.Line.Trim())" }
-          } else {
-            Write-Host "All paths patched OK"
-          }
+          if ($left) { $left | ForEach-Object { Write-Host "HARDCODED line $($_.LineNumber): $($_.Line.Trim())" } }
+          else { Write-Host "All paths patched OK" }
 
       # ── 5. Configure WhipClient ───────────────────────────────────────────────
       - name: Configure WhipClient

@@ -14,7 +14,6 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-
       - uses: microsoft/setup-msbuild@v2
 
       # ── 0. Stub VMProtect macros ──────────────────────────────────────────────
@@ -22,7 +21,6 @@ jobs:
         shell: pwsh
         run: |
           $ws = $env:GITHUB_WORKSPACE
-          Write-Host "Scanning for VMProtect macro calls..."
           Get-ChildItem $ws -Recurse -Include *.cpp,*.c,*.h,*.hpp |
             Where-Object { $_.FullName -notmatch 'Thirdpary|ThirdParty|third_party|tests\\' } |
             ForEach-Object {
@@ -51,16 +49,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build $out --config $env:CONFIGURATION --parallel
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          # Ensure an include/ dir exists (WhipNexus references WhipSysCall/include)
+          $inc = "$dir/include"
+          if (-not (Test-Path $inc)) {
+            Write-Host "include/ not found — creating junction to src/"
+            New-Item -ItemType Junction -Path $inc -Target "$dir/src" | Out-Null
+          }
           Write-Host "WhipSysCall.lib: $(Get-ChildItem $out -Recurse -Filter WhipSysCall.lib | Select -First 1 | % FullName)"
+          Write-Host "include/ contents:"; Get-ChildItem $inc | % { Write-Host "  $($_.Name)" }
 
       # ── 2. Build WhipNexus ────────────────────────────────────────────────────
       - name: Build WhipNexus
         shell: pwsh
         run: |
-          $ws      = $env:GITHUB_WORKSPACE -replace '\\','/'
-          $dir     = "$ws/WhipNexus-Master/WhipNexus-Master"
-          $out     = "$dir/cmake-build-release"
-          $syscall = "$ws/WhipSysCall-master/WhipSysCall-master"
+          $ws       = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir      = "$ws/WhipNexus-Master/WhipNexus-Master"
+          $out      = "$dir/cmake-build-release"
+          $syscall  = "$ws/WhipSysCall-master/WhipSysCall-master"
+          $antidebug= "$ws/WhipAntiDebug-master/WhipAntiDebug-master"
 
           if (-not (Test-Path "$dir/CMakeLists.txt")) {
             Write-Host "No CMakeLists.txt in WhipNexus — skipping"; exit 0
@@ -69,20 +76,32 @@ jobs:
           $cm   = "$dir/CMakeLists.txt"
           $text = Get-Content $cm -Raw
 
-          # Replace absolute hardcoded paths
-          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall', $syscall)
-          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',   $dir)
+          # ── Replace absolute hardcoded paths
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       $syscall)
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',         $dir)
+          $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', $antidebug)
 
-          # Replace relative path ../WhipSysCall (the root cause of this run's error)
-          # It resolves to $dir/../WhipSysCall which doesn't exist — point it to the real location
+          # ── Replace ${CMAKE_*}/../WhipSysCall (the cause of the double-path bug)
+          # Must replace the ENTIRE cmake-variable prefix + relative part together
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipSysCall', $syscall
+          $text = $text -replace '\$\{CMAKE_\w+\}[\\/]\.\./WhipSysCall', $syscall
+
+          # ── Replace bare ../WhipSysCall (any remaining)
           $text = $text -replace '\.\./WhipSysCall', $syscall
           $text = $text -replace '\.\.[/\\]WhipSysCall', $syscall
 
+          # ── Same for WhipNexus self-references and WhipAntiDebug
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipNexus', $dir
+          $text = $text -replace '\.\./WhipNexus', $dir
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipAntiDebug\w*', $antidebug
+          $text = $text -replace '\.\./WhipAntiDebug\w*', $antidebug
+
           Set-Content $cm $text -NoNewline
 
-          # Show any remaining C:/Users references
-          $left = Select-String -Path $cm -Pattern 'C:/Users|\.\./'
+          # Confirm no bad paths remain
+          $left = Select-String -Path $cm -Pattern 'C:/Users|WhipNexus-Master/WhipNexus-Master/'
           if ($left) { $left | ForEach-Object { Write-Host "REMAINING line $($_.LineNumber): $($_.Line.Trim())" } }
+          else { Write-Host "Patch OK" }
 
           cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH -DBUILD_WITH_VMPROTECT=OFF
           if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -96,19 +115,21 @@ jobs:
       - name: Build WhipAntiDebug
         shell: pwsh
         run: |
-          $ws      = $env:GITHUB_WORKSPACE -replace '\\','/'
-          $dir     = "$ws/WhipAntiDebug-master/WhipAntiDebug-master"
-          $out     = "$dir/cmake-build-release"
-          $syscall = "$ws/WhipSysCall-master/WhipSysCall-master"
-          $nexus   = "$ws/WhipNexus-Master/WhipNexus-Master"
+          $ws       = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir      = "$ws/WhipAntiDebug-master/WhipAntiDebug-master"
+          $out      = "$dir/cmake-build-release"
+          $syscall  = "$ws/WhipSysCall-master/WhipSysCall-master"
+          $nexus    = "$ws/WhipNexus-Master/WhipNexus-Master"
 
           $cm   = "$dir/CMakeLists.txt"
           $text = Get-Content $cm -Raw
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       $syscall)
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',         $nexus)
           $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', $dir)
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipSysCall', $syscall
           $text = $text -replace '\.\./WhipSysCall', $syscall
-          $text = $text -replace '\.\./WhipNexus',   $nexus
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipNexus', $nexus
+          $text = $text -replace '\.\./WhipNexus', $nexus
           Set-Content $cm $text -NoNewline
 
           cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH -DBUILD_WITH_VMPROTECT=OFF
@@ -131,11 +152,12 @@ jobs:
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       "$ws/WhipSysCall-master/WhipSysCall-master")
           $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', "$ws/WhipAntiDebug-master/WhipAntiDebug-master")
           $text = $text -replace 'option\(BUILD_WITH_VMPROTECT\s+"[^"]*"\s+ON\)', 'option(BUILD_WITH_VMPROTECT "Build with VMProtect SDK" OFF)'
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipSysCall', "$ws/WhipSysCall-master/WhipSysCall-master"
           $text = $text -replace '\.\./WhipSysCall', "$ws/WhipSysCall-master/WhipSysCall-master"
-          $text = $text -replace '\.\./WhipNexus',   "$ws/WhipNexus-Master/WhipNexus-Master"
+          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipNexus', "$ws/WhipNexus-Master/WhipNexus-Master"
+          $text = $text -replace '\.\./WhipNexus', "$ws/WhipNexus-Master/WhipNexus-Master"
 
           Set-Content $cm $text -NoNewline
-
           $left = Select-String -Path $cm -Pattern 'C:/Users'
           if ($left) { $left | ForEach-Object { Write-Host "HARDCODED line $($_.LineNumber): $($_.Line.Trim())" } }
           else { Write-Host "All paths patched OK" }

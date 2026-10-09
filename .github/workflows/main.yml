@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_DIR: WhipClient-master/WhipClient-master
-  ANTIDEBUG_DIR: WhipAntiDebug-master/WhipAntiDebug-master
   CONFIGURATION: Release
   ARCH: x64
 
@@ -19,73 +17,137 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
-      - name: Diagnose
+      # ── 1. WhipSysCall ────────────────────────────────────────────────────────
+      - name: Build WhipSysCall
         shell: pwsh
         run: |
-          Write-Host "=== References in WhipClient CMakeLists.txt ==="
-          Select-String -Path "$env:PROJECT_DIR/CMakeLists.txt" -Pattern 'C:[/\\]','CLionProjects','AntiDebug','IMPORTED','add_subdirectory','find_package' |
-            ForEach-Object { Write-Host ("{0,4}: {1}" -f $_.LineNumber, $_.Line.Trim()) }
-          Write-Host "=== WhipAntiDebug folder ==="
-          Get-ChildItem $env:ANTIDEBUG_DIR -Recurse -Depth 2 |
-            ForEach-Object { Write-Host $_.FullName.Replace("$PWD\", "") }
+          $ws  = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir = "$ws/WhipSysCall-master/WhipSysCall-master"
+          $out = "$dir/cmake-build-release"
 
-      # Build WhipAntiDebug first (CMake project, or Visual Studio as fallback)
-      - name: Build WhipAntiDebug
+          # Patch any hardcoded paths inside WhipSysCall before configure
+          if (Test-Path "$dir/CMakeLists.txt") {
+            $text = Get-Content "$dir/CMakeLists.txt" -Raw
+            $text = $text -replace 'C:/Users/Java/Desktop/whip/WhipSysCall', $dir
+            Set-Content "$dir/CMakeLists.txt" $text -NoNewline
+          }
+
+          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build $out --config $env:CONFIGURATION --parallel
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          Write-Host "=== WhipSysCall outputs ==="
+          Get-ChildItem $out -Recurse -Include *.lib,*.dll -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host $_.FullName }
+
+      # ── 2. WhipNexus ─────────────────────────────────────────────────────────
+      - name: Build WhipNexus
         shell: pwsh
         run: |
-          $dir = Join-Path $PWD $env:ANTIDEBUG_DIR
-          $out = Join-Path $dir "cmake-build-release"
+          $ws  = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir = "$ws/WhipNexus-Master/WhipNexus-Master"
+          $out = "$dir/cmake-build-release"
+
           if (Test-Path "$dir/CMakeLists.txt") {
+            # Patch any hardcoded paths
+            $text = Get-Content "$dir/CMakeLists.txt" -Raw
+            $text = $text -replace 'C:/Users/Java/Desktop/whip/WhipSysCall', "$ws/WhipSysCall-master/WhipSysCall-master"
+            $text = $text -replace 'C:/Users/Java/Desktop/whip/WhipNexus',   $dir
+            Set-Content "$dir/CMakeLists.txt" $text -NoNewline
+
             cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH
             if ($LASTEXITCODE -ne 0) { exit 1 }
             cmake --build $out --config $env:CONFIGURATION --parallel
             if ($LASTEXITCODE -ne 0) { exit 1 }
           } else {
             $sln = Get-ChildItem $dir -Recurse -Filter *.sln | Select-Object -First 1
-            if (-not $sln) { $sln = Get-ChildItem $dir -Recurse -Filter *.vcxproj | Select-Object -First 1 }
-            if (-not $sln) { Write-Error "No buildable project in $dir"; exit 1 }
-            msbuild $sln.FullName /m /p:Configuration=$env:CONFIGURATION /p:Platform=$env:ARCH
-            if ($LASTEXITCODE -ne 0) { exit 1 }
+            if ($sln) {
+              msbuild $sln.FullName /m /p:Configuration=$env:CONFIGURATION /p:Platform=$env:ARCH
+              if ($LASTEXITCODE -ne 0) { exit 1 }
+            } else {
+              Write-Host "No build file in WhipNexus — skipping (will fail at link if needed)"
+            }
           }
 
-          # Copy produced .lib files next to where CLion would have put them
-          New-Item -ItemType Directory -Force $out | Out-Null
-          Get-ChildItem $dir -Recurse -Filter *.lib |
-            Where-Object { $_.DirectoryName -ne $out } |
-            ForEach-Object { Copy-Item $_.FullName $out -Force; Write-Host "Copied $($_.Name)" }
-          Copy-Item (Join-Path $out "*.lib") $dir -Force -ErrorAction SilentlyContinue
+          Write-Host "=== WhipNexus outputs ==="
+          Get-ChildItem $dir -Recurse -Include *.lib -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host $_.FullName }
 
-      - name: Patch author's hardcoded paths
+      # ── 3. WhipAntiDebug ─────────────────────────────────────────────────────
+      - name: Patch and Build WhipAntiDebug
         shell: pwsh
         run: |
-          $cm = "$env:PROJECT_DIR/CMakeLists.txt"
-          $ws = $env:GITHUB_WORKSPACE -replace '\\','/'
-          $new = "$ws/$env:ANTIDEBUG_DIR"
+          $ws      = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $dir     = "$ws/WhipAntiDebug-master/WhipAntiDebug-master"
+          $out     = "$dir/cmake-build-release"
+          $syscall = "$ws/WhipSysCall-master/WhipSysCall-master"
+
+          $cm   = "$dir/CMakeLists.txt"
           $text = Get-Content $cm -Raw
-          $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', $new)
-          Set-Content -Path $cm -Value $text -NoNewline
-          Write-Host "Patched to: $new"
-          Select-String -Path $cm -Pattern 'C:[/\\]Users' | ForEach-Object { Write-Host "STILL HARDCODED: $($_.Line.Trim())" }
+          $text = $text -replace 'C:/Users/Java/Desktop/whip/WhipSysCall', $syscall
+          $text = $text -replace 'C:\\Users\\Java\\Desktop\\whip\\WhipSysCall', $syscall
+          Set-Content $cm $text -NoNewline
+          Write-Host "Patched WhipAntiDebug CMakeLists.txt"
 
+          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build $out --config $env:CONFIGURATION --parallel
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          Write-Host "=== WhipAntiDebug outputs ==="
+          Get-ChildItem $out -Recurse -Include *.lib -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host $_.FullName }
+
+      # ── 4. Patch WhipClient CMakeLists.txt ───────────────────────────────────
+      - name: Patch WhipClient CMakeLists.txt
+        shell: pwsh
+        run: |
+          $ws  = $env:GITHUB_WORKSPACE -replace '\\','/'
+          $cm  = "WhipClient-master/WhipClient-master/CMakeLists.txt"
+          $text = Get-Content $cm -Raw
+
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',         "$ws/WhipNexus-Master/WhipNexus-Master")
+          $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       "$ws/WhipSysCall-master/WhipSysCall-master")
+          $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', "$ws/WhipAntiDebug-master/WhipAntiDebug-master")
+          # VMProtect SDK is not present — disable it
+          $text = $text -replace 'option\(BUILD_WITH_VMPROTECT\s+"[^"]+"\s+ON\)', 'option(BUILD_WITH_VMPROTECT "Build with VMProtect SDK" OFF)'
+
+          Set-Content $cm $text -NoNewline
+
+          $remaining = Select-String -Path $cm -Pattern 'C:/Users'
+          if ($remaining) {
+            Write-Host "WARNING — still hardcoded paths:"
+            $remaining | ForEach-Object { Write-Host "  Line $($_.LineNumber): $($_.Line.Trim())" }
+          } else {
+            Write-Host "All paths patched OK"
+          }
+
+      # ── 5. Configure WhipClient ───────────────────────────────────────────────
       - name: Configure WhipClient
-        run: cmake -S "${{ env.PROJECT_DIR }}" -B build -G "Visual Studio 17 2022" -A ${{ env.ARCH }}
+        run: |
+          cmake -S "WhipClient-master/WhipClient-master" -B build ^
+                -G "Visual Studio 17 2022" -A ${{ env.ARCH }} ^
+                -DBUILD_WITH_VMPROTECT=OFF
 
+      # ── 6. Build WhipClient ───────────────────────────────────────────────────
       - name: Build WhipClient
         run: cmake --build build --config ${{ env.CONFIGURATION }} --parallel
 
+      # ── 7. List & Upload ──────────────────────────────────────────────────────
       - name: List outputs
         if: always()
         shell: pwsh
         run: |
-          Get-ChildItem build -Recurse -Include *.exe,*.dll,*.lib -ErrorAction SilentlyContinue |
+          Get-ChildItem build -Recurse -Include *.exe,*.dll -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch 'CMakeFiles' } |
             ForEach-Object { Write-Host $_.FullName }
 
-      - name: Upload build output
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: WhipClient-${{ env.ARCH }}-${{ env.CONFIGURATION }}
+          name: WhipClient-x64-Release
           path: |
-            build/**/${{ env.CONFIGURATION }}/*.exe
-            build/**/${{ env.CONFIGURATION }}/*.dll
+            build/**/Release/*.exe
+            build/**/Release/*.dll
           if-no-files-found: warn

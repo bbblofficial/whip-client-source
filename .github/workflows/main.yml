@@ -58,7 +58,6 @@ jobs:
           }
           Write-Host "WhipSysCall.lib: $(Get-ChildItem $out -Recurse -Filter WhipSysCall.lib | Select -First 1 | % FullName)"
           Write-Host "include/ contents:"; Get-ChildItem $inc | % { Write-Host "  $($_.Name)" }
-
       # ── 2. Build WhipNexus ────────────────────────────────────────────────────
       - name: Build WhipNexus
         shell: pwsh
@@ -76,41 +75,54 @@ jobs:
           $cm   = "$dir/CMakeLists.txt"
           $text = Get-Content $cm -Raw
 
-          # ── Replace absolute hardcoded paths
+          # Absolute hardcoded paths
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipSysCall',       $syscall)
           $text = $text.Replace('C:/Users/Java/Desktop/whip/WhipNexus',         $dir)
           $text = $text.Replace('C:/Users/Java/CLionProjects/WhipAntiDebugger', $antidebug)
 
-          # ── Replace ${CMAKE_*}/../WhipSysCall (the cause of the double-path bug)
-          # Must replace the ENTIRE cmake-variable prefix + relative part together
-          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipSysCall', $syscall
-          $text = $text -replace '\$\{CMAKE_\w+\}[\\/]\.\./WhipSysCall', $syscall
-
-          # ── Replace bare ../WhipSysCall (any remaining)
-          $text = $text -replace '\.\./WhipSysCall', $syscall
+          # Relative paths (${CMAKE_*}/../WhipSysCall → must replace whole token)
+          $text = $text -replace '\$\{CMAKE_\w+\}[/\\]\.\.[/\\]WhipSysCall', $syscall
+          $text = $text -replace '\$\{CMAKE_\w+\}[/\\]\.\.[/\\]WhipNexus',   $dir
           $text = $text -replace '\.\.[/\\]WhipSysCall', $syscall
+          $text = $text -replace '\.\.[/\\]WhipNexus',   $dir
 
-          # ── Same for WhipNexus self-references and WhipAntiDebug
-          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipNexus', $dir
-          $text = $text -replace '\.\./WhipNexus', $dir
-          $text = $text -replace '\$\{CMAKE_\w+\}/\.\./WhipAntiDebug\w*', $antidebug
-          $text = $text -replace '\.\./WhipAntiDebug\w*', $antidebug
+          # Fix Ninja generator in ExternalProject_Add — CLion hardcodes Ninja,
+          # but we're running under Visual Studio 17 2022
+          $text = $text -replace 'CMAKE_GENERATOR\s+"Ninja"',            'CMAKE_GENERATOR "Visual Studio 17 2022"'
+          $text = $text -replace "CMAKE_GENERATOR\s+'Ninja'",            'CMAKE_GENERATOR "Visual Studio 17 2022"'
+          $text = $text -replace '(ExternalProject_Add[^)]+?)CMAKE_ARGS', `
+                         '$1CMAKE_GENERATOR "Visual Studio 17 2022"' + "`n    CMAKE_GENERATOR_PLATFORM `"x64`"`n    CMAKE_ARGS"
+
+          # Remove any BINARY_DIR pointing to the WhipSysCall cmake-build-release
+          # we already built — let ExternalProject use a fresh subdir instead
+          # (avoids the "generator mismatch with existing cache" error)
+          $text = $text -replace 'BINARY_DIR\s+"\$\{[^}]+\}/cmake-build-release"', `
+                         "BINARY_DIR `"$out/whipsyscall-ep-build`""
+          $text = $text -replace "BINARY_DIR\s+'\$\{[^}]+\}/cmake-build-release'", `
+                         "BINARY_DIR `"$out/whipsyscall-ep-build`""
 
           Set-Content $cm $text -NoNewline
 
-          # Confirm no bad paths remain
-          $left = Select-String -Path $cm -Pattern 'C:/Users|WhipNexus-Master/WhipNexus-Master/'
-          if ($left) { $left | ForEach-Object { Write-Host "REMAINING line $($_.LineNumber): $($_.Line.Trim())" } }
-          else { Write-Host "Patch OK" }
+          # If ExternalProject still tries to use the same binary dir as our
+          # already-built WhipSysCall, pre-delete its CMakeCache so it regenerates clean
+          $scBuild = "$syscall/cmake-build-release"
+          if (Test-Path "$scBuild/CMakeCache.txt") {
+            Write-Host "Pre-clearing WhipSysCall CMakeCache to avoid generator conflict"
+            Remove-Item "$scBuild/CMakeCache.txt" -Force
+            Remove-Item "$scBuild/CMakeFiles" -Recurse -Force -ErrorAction SilentlyContinue
+          }
 
-          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A $env:ARCH -DBUILD_WITH_VMPROTECT=OFF
+          Write-Host "=== Remaining suspicious lines ==="
+          Select-String -Path $cm -Pattern 'Ninja|C:/Users' |
+            ForEach-Object { Write-Host "  line $($_.LineNumber): $($_.Line.Trim())" }
+
+          cmake -S $dir -B $out -G "Visual Studio 17 2022" -A x64 -DBUILD_WITH_VMPROTECT=OFF
           if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build $out --config $env:CONFIGURATION --parallel
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
           Write-Host "=== WhipNexus .lib files ==="
           Get-ChildItem $out -Recurse -Filter *.lib | ForEach-Object { Write-Host $_.FullName }
-
       # ── 3. Build WhipAntiDebug ────────────────────────────────────────────────
       - name: Build WhipAntiDebug
         shell: pwsh
